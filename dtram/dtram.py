@@ -1,6 +1,6 @@
 import numpy as np
 
-from objective import F_dtram, DF_dtram, convert_solution
+from objective_new import F_dtram, DF_dtram, convert_solution
 from solve import factor, solve_factorized
 
 """Parameters for primal-dual iteration"""
