@@ -3,6 +3,8 @@ import numpy as np
 from objective_new import F_dtram, DF_dtram, convert_solution
 from solve import factor, solve_factorized
 
+__all__=['solve_dtram',]
+
 """Parameters for primal-dual iteration"""
 GAMMA_MIN = 0.0001
 GAMMA_MAX = 0.01
