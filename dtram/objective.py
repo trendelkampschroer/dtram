@@ -9,25 +9,58 @@ r"""Gradient and Hessian for reversible MLE"""
 def F(z, C):
     r"""Gradient for reversible MLE"""
     N=z.shape[0]
-    x=z[0:N/2]
-    y=z[N/2:]
+    x_raw=z[0:N/2]
+    y_raw=z[N/2:]
+    C_sym_raw = C+C.transpose()
+
+    """Ignore zero rows and columns"""
+    pos = (C_sym_raw.sum(axis=1) > 0.0)
+
+    """Set up gradient subvectors"""
+    Fx = np.zeros(N/2)
+    Fy = np.zeros(N/2)
+
+    """Interesting subthings"""    
+    C_sym = (C_sym_raw[pos, :])[:, pos]
+    x = x_raw[pos]
+    y = y_raw[pos]
+    q = np.exp(y)
+
+    """Compute"""
     q=np.exp(y)
-    C_sym=C+C.transpose()
     W=x[:,np.newaxis]*q[np.newaxis,:]
     Z=W+W.transpose()   
-    Fx=-1.0*np.sum(C_sym*q[np.newaxis, :]/Z, axis=1)+1.0
-    Fy= -1.0*np.sum(C_sym*W.transpose()/Z, axis=1)+np.sum(C, axis=0)
+    Fx[pos]=-1.0*np.sum(C_sym*q[np.newaxis, :]/Z, axis=1)
+    Fx += 1.0
+    Fy[pos]= -1.0*np.sum(C_sym*W.transpose()/Z, axis=1)
+    Fy += np.sum(C, axis=0)
     return np.hstack((Fx, -1.0*Fy))
 
 def DF(z, C):
     r"""Hessian for reversible MLE"""
-    N=z.shape[0]
-    x=z[0:N/2]
-    y=z[N/2:]
-    
-    q=np.exp(y)
+    N = z.shape[0]
+    x_raw = z[0:N/2]
+    y_raw = z[N/2:]
+    C_sym_raw = C+C.transpose()
 
-    C_sym=C+C.transpose()
+    """Ignore zero rows and columns"""
+    pos = (C_sym_raw.sum(axis=1) > 0.0)
+
+    """Set up Hessian blocks"""
+    DxDxf = np.zeros((N/2, N/2))
+    DyDyf = np.zeros((N/2, N/2))
+    DyDxf = np.zeros((N/2, N/2))
+
+    """Index for submatrices"""
+    idx = np.ix_(pos, pos)
+
+    """Interesting subthings"""    
+    C_sym = (C_sym_raw[pos, :])[:, pos]
+    x = x_raw[pos]
+    y = y_raw[pos]
+    q = np.exp(y)
+
+    """Compute"""
     W=x[:,np.newaxis]*q[np.newaxis,:]
     Wt=W.transpose()
     Z=W+Wt
@@ -36,10 +69,10 @@ def DF(z, C):
     Q=q[:,np.newaxis]*q[np.newaxis,:]
 
     dxx=np.sum(C_sym*(q**2)[np.newaxis,:]/Z2, axis=1)
-    DxDxf= np.diag(dxx)+C_sym*Q/Z2
+    DxDxf[idx]= np.diag(dxx)+C_sym*Q/Z2
 
     dxy=np.sum(C_sym*(x*q)[:,np.newaxis]*q[np.newaxis,:]/Z2, axis=0)
-    DyDxf=-1.0*C_sym*q[np.newaxis,:]/Z + C_sym*(W*q[np.newaxis,:])/Z2+np.diag(dxy)
+    DyDxf[idx]=-1.0*C_sym*q[np.newaxis,:]/Z + C_sym*(W*q[np.newaxis,:])/Z2+np.diag(dxy)
     
     DxDyf=DyDxf.transpose()
     
@@ -47,7 +80,7 @@ def DF(z, C):
     Dyy2=C_sym*W**2/Z2
     dyy=np.sum(Dyy1, axis=0)+np.sum(Dyy2, axis=0)
     
-    DyDyf=np.diag(dyy)+C_sym*W*Wt/Z2
+    DyDyf[idx]=np.diag(dyy)+C_sym*W*Wt/Z2
 
     J=np.zeros((N, N))
     J[0:N/2, 0:N/2]=DxDxf
