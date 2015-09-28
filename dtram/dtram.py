@@ -1,7 +1,7 @@
 import numpy as np
 
 from objective import F_dtram, DF_dtram, convert_solution
-from solve import factor, solve_factorized
+from linsolve import factor, solve_factorized
 
 __all__=['solve_dtram',]
 
