@@ -1,6 +1,33 @@
 import numpy as np
 
 from scipy.linalg import lu_factor, lu_solve
+from scipy.sparse import issparse, diags
+
+def mydot(A, B):
+    r"""Dot-product that can handle dense and sparse arrays
+
+    Parameters
+    ----------
+    A : numpy ndarray or scipy sparse matrix
+        The first factor
+    B : numpy ndarray or scipy sparse matrix
+        The second factor
+
+    Returns
+    C : numpy ndarray or scipy sparse matrix
+        The dot-product of A and B
+
+    """
+    if issparse(A) :
+        return A.dot(B)
+    elif issparse(B):
+        return (B.T.dot(A.T)).T
+    else:
+        return np.dot(A, B)
+
+###############################################################################
+# Utility functions for block-assembly
+###############################################################################
 
 def assemble_aug(DFval, l, s, A, G):
     r"""Assemble augmented system"""
@@ -27,56 +54,60 @@ def schur_complement(LU_Wk, B):
     Wkc = np.dot(B.T, WkinvAk0)
     return Wkc
 
-def factor_dtram(z, DPhival, G, A):
-    """Hard code the number of thermodynamic states (for debugging)"""
-    K = 2
+# def factor_dtram(z, DPhival, G, A):
+#     """Hard code the number of thermodynamic states (for debugging)"""
+#     K = 2
 
-    M, N = G.shape
-    P, N = A.shape
+#     M, N = G.shape
+#     P, N = A.shape
 
-    """Dimension of single subproblem"""
-    n = N/K
-    n_E0 = 1
-    n_E = (P-n_E0)/(K-1)
-    n_I = M/K
+#     """Dimension of single subproblem"""
+#     n = N/K
+#     n_E0 = 1
+#     n_E = (P-n_E0)/(K-1)
+#     n_I = M/K
 
-    """Extract submatrices for constraints"""
-    A0 = A[0:n_E0,0:n]
-    Ak = A[n_E0:n_E0+n_E, n:2*n]
-    Ak0 = A[n_E0:n_E0+n_E, 0:n]
+#     """Extract submatrices for constraints"""
+#     A0 = A[0:n_E0,0:n]
+#     Ak = A[n_E0:n_E0+n_E, n:2*n]
+#     Ak0 = A[n_E0:n_E0+n_E, 0:n]
 
-    Gloc = G[0:n_I, 0:n]
+#     Gloc = G[0:n_I, 0:n]
 
-    """Stack Jacobians"""
-    DFval = np.zeros((K*n, n))
-    for k in range(K):
-        DFval[k*n:(k+1)*n, :] = DPhival[k*n:(k+1)*n,k*n:(k+1)*n]
+#     """Stack Jacobians"""
+#     DFval = np.zeros((K*n, n))
+#     for k in range(K):
+#         DFval[k*n:(k+1)*n, :] = DPhival[k*n:(k+1)*n,k*n:(k+1)*n]
 
-    return factor(DFval, z, A0, Ak, Ak0, Gloc)
+#     return factor(DFval, z, A0, Ak, Ak0, Gloc)
 
-def solve_factorized_dtram(z, Fval, LU, G, A):
-    """Hard code the number of thermodynamic states (for debugging)"""
-    K = 2
+# def solve_factorized_dtram(z, Fval, LU, G, A):
+#     """Hard code the number of thermodynamic states (for debugging)"""
+#     K = 2
 
-    M, N = G.shape
-    P, N = A.shape
+#     M, N = G.shape
+#     P, N = A.shape
 
-    """Dimension of single subproblem"""
-    n = N/K
-    n_E0 = 1
-    n_E = (P-n_E0)/(K-1)
-    n_I = M/K
+#     """Dimension of single subproblem"""
+#     n = N/K
+#     n_E0 = 1
+#     n_E = (P-n_E0)/(K-1)
+#     n_I = M/K
 
-    """Extract submatrices for constraints"""
-    A0 = A[0:n_E0,0:n]
-    Ak = A[n_E0:n_E0+n_E, n:2*n]
-    Ak0 = A[n_E0:n_E0+n_E, 0:n]
+#     """Extract submatrices for constraints"""
+#     A0 = A[0:n_E0,0:n]
+#     Ak = A[n_E0:n_E0+n_E, n:2*n]
+#     Ak0 = A[n_E0:n_E0+n_E, 0:n]
 
-    Gloc = G[0:n_I, 0:n]
+#     Gloc = G[0:n_I, 0:n]
 
-    KKTval = Fval
+#     KKTval = Fval
 
-    return solve_factorized(KKTval, z, LU, A0, Ak, Ak0, Gloc)             
+#     return solve_factorized(KKTval, z, LU, A0, Ak, Ak0, Gloc)
+
+###############################################################################
+# Factor and solve for DTRAM system
+###############################################################################
 
 def factor(DFval, z, A0, Ak, Ak0, G):    
     r"""Factor DKKT-system for DTRAM using block-structure.
