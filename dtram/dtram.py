@@ -1,7 +1,7 @@
 import numpy as np
 
 from objective import F_dtram, DF_dtram, convert_solution
-from linsolve import factor, solve_factorized
+from linsolve import factor, solve_factorized, mydot
 
 __all__=['solve_dtram',]
 
@@ -53,7 +53,7 @@ def primal_dual_solve(func, x0, Dfunc, A0, b0, Ak, bk, Ak0, Gk, hk,
         r"""Gap-function"""
         l = z[N+P:N+P+M]
         s = z[N+P+M:]
-        return np.dot(l, s)/M
+        return mydot(l, s)/M
 
     def centrality(z):
         r"""Centrality function"""
@@ -111,9 +111,9 @@ def primal_dual_solve(func, x0, Dfunc, A0, b0, Ak, bk, Ak0, Gk, hk,
         l0 = l[0:m]
         s0 = s[0:m]
         F0 = Fval[0:n]
-        rd[0:n] = F0 + np.dot(A0.T, nu0) + np.dot(Gk.T, l0)
-        rp1[0:p_E0] = np.dot(A0, x0) - b0
-        rp2[0:m] = np.dot(Gk, x0) - hk + s0
+        rd[0:n] = F0 + mydot(A0.T, nu0) + mydot(Gk.T, l0)
+        rp1[0:p_E0] = mydot(A0, x0) - b0
+        rp2[0:m] = mydot(Gk, x0) - hk + s0
         rc[0:m] = l0*s0
 
         for i in range(1, K):
@@ -126,13 +126,13 @@ def primal_dual_solve(func, x0, Dfunc, A0, b0, Ak, bk, Ak0, Gk, hk,
             nui = nu[p_E0+(i-1)*p_E:p_E0+i*p_E]
 
             """Compute residuals"""
-            rd[i*n:(i+1)*n] = Fi + np.dot(Ak.T, nui) + np.dot(Gk.T, li)
-            rp1[p_E0+(i-1)*p_E:p_E0+i*p_E] = np.dot(Ak, xi) + np.dot(Ak0, x0) - bi
-            rp2[i*m:(i+1)*m] = np.dot(Gk, xi) - hk + si
+            rd[i*n:(i+1)*n] = Fi + mydot(Ak.T, nui) + mydot(Gk.T, li)
+            rp1[p_E0+(i-1)*p_E:p_E0+i*p_E] = mydot(Ak, xi) + mydot(Ak0, x0) - bi
+            rp2[i*m:(i+1)*m] = mydot(Gk, xi) - hk + si
             rc[i*m:(i+1)*m] = li*si
 
             """Update dual residual at condition alpha=0"""
-            rd[0:n] += np.dot(Ak0.T, nui)
+            rd[0:n] += mydot(Ak0.T, nui)
 
         return np.hstack((rd, rp1, rp2, rc))                                        
 
@@ -214,7 +214,7 @@ def primal_dual_solve(func, x0, Dfunc, A0, b0, Ak, bk, Ak0, Gk, hk,
     """Initial Slacks for inequality constraints"""
     s0 = np.zeros(M)
     for i in range(K):
-        s0[i*m:(i+1)*m] = -1.0*(np.dot(Gk, x0[i*n:(i+1)*n]) - hk)
+        s0[i*m:(i+1)*m] = -1.0*(mydot(Gk, x0[i*n:(i+1)*n]) - hk)
 
     """Initial multipliers for inequality constraints"""
     l0 = 1.0*np.ones(M)
