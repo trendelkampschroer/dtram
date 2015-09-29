@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse
 
 from objective import F_dtram, DF_dtram, convert_solution
 from linsolve import factor, solve_factorized, mydot
@@ -318,8 +319,9 @@ def solve_dtram(C, u, tol=1e-10, maxiter=100, show_progress=True):
     M = C.shape[1] # Number of discrete states
 
     """Inequality constraints"""
-    Gk = np.zeros((M, 2*M))
-    Gk[:,0:M] = -1.0 * np.eye(M)
+    # Gk = np.zeros((M, 2*M))
+    # Gk[:,0:M] = -1.0 * np.eye(M)
+    Gk = -1.0*scipy.sparse.eye(M, n=2*M, k=0)
     hk = np.zeros((M,))
 
     """Equality constraints at alpha=0"""
