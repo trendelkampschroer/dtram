@@ -36,13 +36,15 @@ def assemble_aug(DFval, l, s, A, G):
     n_E = A.shape[0]
 
     """Diagonal of Sigma matrix"""
-    sig = l/s
+    # sig = l/s
+    SIG = diags(l/s, 0)
 
     """Augmented system"""
     W = np.zeros((n+n_E, n+n_E))
 
     """Assemble system"""
-    W[0:n, 0:n] = DFval + np.dot(G.T, sig[:,np.newaxis]*G)
+    # W[0:n, 0:n] = DFval + mydot(G.T, sig[:,np.newaxis]*G)
+    W[0:n, 0:n] = DFval + mydot(G.T, mydot(SIG, G))    
     W[0:n, n:] = A.T
     W[n:, 0:n] = A
     return W
@@ -51,7 +53,7 @@ def schur_complement(LU_Wk, B):
     """Compute Wk^{-1} Ak0"""
     WkinvAk0 = lu_solve(LU_Wk, B)
     """Compute Schur complement Ak0^T Wk^{-1} Ak0"""
-    Wkc = np.dot(B.T, WkinvAk0)
+    Wkc = mydot(B.T, WkinvAk0)
     return Wkc
 
 # def factor_dtram(z, DPhival, G, A):
@@ -269,7 +271,7 @@ def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
         else:
             rp1k = rp1[p_E0+(k-1)*p_E:p_E0+k*p_E]
         """RHS of augmented system"""
-        b1 = rdk + np.dot(G.T, sigk*rp2k) - np.dot(G.T, rck/sk)
+        b1 = rdk + mydot(G.T, sigk*rp2k) - mydot(G.T, rck/sk)
         b2 = rp1k
         b = np.hstack((b1, b2))
         if k==0:
@@ -279,7 +281,7 @@ def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
             """Compute W_k^{-1}b_k"""
             Winvbk = lu_solve(LU_W[k-1], b)
             """Update RHS of condensed system"""
-            rhs0 -= np.dot(B.T, Winvbk)
+            rhs0 -= mydot(B.T, Winvbk)
             """Store W_k^{-1}b_k"""
             Winvb.append(Winvbk)
 
@@ -293,7 +295,7 @@ def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
     # dy0 = lu_solve(LU_S, -rhs0)
     # dx[0:n] = dy0[0:n]
     # dnu[0:p_E0] = dy0[n:]
-    # ds[0:m] = -rp2[0:m] - np.dot(G, dx[0:n])
+    # ds[0:m] = -rp2[0:m] - mydot(G, dx[0:n])
     # dl[0:m] = -sig[0:m]*ds[0:m] - rc[0:m]/s[0:m]
 
     """Compute increment subvectors and assign"""
@@ -304,10 +306,10 @@ def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
             # dx[0:n] = dy0[0:n]
             dnu[0:p_E0] = dy0[n:]
         else:
-            dy = -Winvb[k-1] - lu_solve(LU_W[k-1], np.dot(B, dy0))
+            dy = -Winvb[k-1] - lu_solve(LU_W[k-1], mydot(B, dy0))
             dnu[p_E0+(k-1)*p_E:p_E0+k*p_E] = dy[n:]
         dx[k*n:(k+1)*n] = dy[0:n]
-        ds[k*m:(k+1)*m] = -rp2[k*m:(k+1)*m] - np.dot(G, dx[k*n:(k+1)*n])
+        ds[k*m:(k+1)*m] = -rp2[k*m:(k+1)*m] - mydot(G, dx[k*n:(k+1)*n])
         dl[k*m:(k+1)*m] = -sig[k*m:(k+1)*m]*ds[k*m:(k+1)*m] - rc[k*m:(k+1)*m]/s[k*m:(k+1)*m]
 
     return np.hstack((dx, dnu, dl, ds))
