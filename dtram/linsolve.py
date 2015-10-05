@@ -3,7 +3,7 @@ import numpy as np
 
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import issparse, diags, csr_matrix
-from scipy.sparse.linalg import splu
+from scipy.sparse.linalg import splu, SuperLU
 
 def mydot(A, B):
     r"""Dot-product that can handle dense and sparse arrays
@@ -26,6 +26,18 @@ def mydot(A, B):
         return (B.T.dot(A.T)).T
     else:
         return np.dot(A, B)
+
+def myfactor(A):
+    if issparse(A):
+        return splu(A)
+    else:
+        return lu_factor(A)
+
+def mysolve(LU, b):
+    if isinstance(LU, SuperLU):
+        return LU.solve(b)
+    else:
+        return lu_solve(LU, b)
 
 ###############################################################################
 # Utility functions for block-assembly
