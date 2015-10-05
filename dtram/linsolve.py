@@ -1,7 +1,9 @@
+import time
 import numpy as np
 
 from scipy.linalg import lu_factor, lu_solve
-from scipy.sparse import issparse, diags
+from scipy.sparse import issparse, diags, csr_matrix
+from scipy.sparse.linalg import splu
 
 def mydot(A, B):
     r"""Dot-product that can handle dense and sparse arrays
@@ -55,57 +57,6 @@ def schur_complement(LU_Wk, B):
     """Compute Schur complement Ak0^T Wk^{-1} Ak0"""
     Wkc = mydot(B.T, WkinvAk0)
     return Wkc
-
-# def factor_dtram(z, DPhival, G, A):
-#     """Hard code the number of thermodynamic states (for debugging)"""
-#     K = 2
-
-#     M, N = G.shape
-#     P, N = A.shape
-
-#     """Dimension of single subproblem"""
-#     n = N/K
-#     n_E0 = 1
-#     n_E = (P-n_E0)/(K-1)
-#     n_I = M/K
-
-#     """Extract submatrices for constraints"""
-#     A0 = A[0:n_E0,0:n]
-#     Ak = A[n_E0:n_E0+n_E, n:2*n]
-#     Ak0 = A[n_E0:n_E0+n_E, 0:n]
-
-#     Gloc = G[0:n_I, 0:n]
-
-#     """Stack Jacobians"""
-#     DFval = np.zeros((K*n, n))
-#     for k in range(K):
-#         DFval[k*n:(k+1)*n, :] = DPhival[k*n:(k+1)*n,k*n:(k+1)*n]
-
-#     return factor(DFval, z, A0, Ak, Ak0, Gloc)
-
-# def solve_factorized_dtram(z, Fval, LU, G, A):
-#     """Hard code the number of thermodynamic states (for debugging)"""
-#     K = 2
-
-#     M, N = G.shape
-#     P, N = A.shape
-
-#     """Dimension of single subproblem"""
-#     n = N/K
-#     n_E0 = 1
-#     n_E = (P-n_E0)/(K-1)
-#     n_I = M/K
-
-#     """Extract submatrices for constraints"""
-#     A0 = A[0:n_E0,0:n]
-#     Ak = A[n_E0:n_E0+n_E, n:2*n]
-#     Ak0 = A[n_E0:n_E0+n_E, 0:n]
-
-#     Gloc = G[0:n_I, 0:n]
-
-#     KKTval = Fval
-
-#     return solve_factorized(KKTval, z, LU, A0, Ak, Ak0, Gloc)
 
 ###############################################################################
 # Factor and solve for DTRAM system
@@ -191,18 +142,21 @@ def factor(DFval, z, A0, Ak, Ak0, G):
         DFvalk = DFval[k*n:(k+1)*n, :]        
         """Assemble augmented system"""
         Wk = assemble_aug(DFvalk, lk, sk, Ak, G)
+
         """Factor"""
         LU_k = lu_factor(Wk)
+        
         """Compute Schur complement"""
         SC_k = schur_complement(LU_k, B)
         """Update LHS of condensed system"""
         S -= SC_k
+        
         """Store LU-factors"""
         LU_W.append(LU_k)
-
+        
     """Factor LHS of condensed system"""
     LU_S = lu_factor(S)
-
+    
     return (LU_S, LU_W)
 
 def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
