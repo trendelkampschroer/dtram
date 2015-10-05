@@ -29,7 +29,7 @@ def mydot(A, B):
 
 def myfactor(A):
     if issparse(A):
-        return splu(A)
+        return splu(A.tocsc())
     else:
         return lu_factor(A)
 
@@ -65,7 +65,7 @@ def assemble_aug(DFval, l, s, A, G):
 
 def schur_complement(LU_Wk, B):
     """Compute Wk^{-1} Ak0"""
-    WkinvAk0 = lu_solve(LU_Wk, B)
+    WkinvAk0 = mysolve(LU_Wk, B)
     """Compute Schur complement Ak0^T Wk^{-1} Ak0"""
     Wkc = mydot(B.T, WkinvAk0)
     return Wkc
@@ -156,7 +156,8 @@ def factor(DFval, z, A0, Ak, Ak0, G):
         Wk = assemble_aug(DFvalk, lk, sk, Ak, G)
 
         """Factor"""
-        LU_k = lu_factor(Wk)
+        # LU_k = myfactor(Wk)
+        LU_k = myfactor(csr_matrix(Wk))
         
         """Compute Schur complement"""
         SC_k = schur_complement(LU_k, B)
@@ -167,7 +168,8 @@ def factor(DFval, z, A0, Ak, Ak0, G):
         LU_W.append(LU_k)
         
     """Factor LHS of condensed system"""
-    LU_S = lu_factor(S)
+    # LU_S = myfactor(S)
+    LU_S = myfactor(csr_matrix(S))    
     
     return (LU_S, LU_W)
 
@@ -245,7 +247,7 @@ def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
             rhs0 = b
         else:
             """Compute W_k^{-1}b_k"""
-            Winvbk = lu_solve(LU_W[k-1], b)
+            Winvbk = mysolve(LU_W[k-1], b)
             """Update RHS of condensed system"""
             rhs0 -= mydot(B.T, Winvbk)
             """Store W_k^{-1}b_k"""
@@ -258,7 +260,7 @@ def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
     ds = np.zeros(M)
 
     # """Solve system at condition alpha=0"""
-    # dy0 = lu_solve(LU_S, -rhs0)
+    # dy0 = mysolve(LU_S, -rhs0)
     # dx[0:n] = dy0[0:n]
     # dnu[0:p_E0] = dy0[n:]
     # ds[0:m] = -rp2[0:m] - mydot(G, dx[0:n])
@@ -267,12 +269,12 @@ def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
     """Compute increment subvectors and assign"""
     for k in range(K):
         if k==0:
-            dy0 = lu_solve(LU_S, -rhs0)
+            dy0 = mysolve(LU_S, -rhs0)
             dy = dy0
             # dx[0:n] = dy0[0:n]
             dnu[0:p_E0] = dy0[n:]
         else:
-            dy = -Winvb[k-1] - lu_solve(LU_W[k-1], mydot(B, dy0))
+            dy = -Winvb[k-1] - mysolve(LU_W[k-1], mydot(B, dy0))
             dnu[p_E0+(k-1)*p_E:p_E0+k*p_E] = dy[n:]
         dx[k*n:(k+1)*n] = dy[0:n]
         ds[k*m:(k+1)*m] = -rp2[k*m:(k+1)*m] - mydot(G, dx[k*n:(k+1)*n])
