@@ -1,6 +1,4 @@
-import time
 import numpy as np
-
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import issparse, diags, csr_matrix
 from scipy.sparse.linalg import splu, SuperLU
