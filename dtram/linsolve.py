@@ -2,6 +2,8 @@ import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import issparse, diags, csr_matrix
 from scipy.sparse.linalg import splu, SuperLU
+# from scikits.umfpack import splu
+# from scikits.umfpack.interface import UmfpackLU as SuperLU
 
 def mydot(A, B):
     r"""Dot-product that can handle dense and sparse arrays
@@ -65,7 +67,7 @@ def schur_complement(LU_Wk, B):
     """Compute Wk^{-1} Ak0"""
     WkinvAk0 = mysolve(LU_Wk, B)
     """Compute Schur complement Ak0^T Wk^{-1} Ak0"""
-    Wkc = mydot(B.T, WkinvAk0)
+    Wkc = mydot(csr_matrix(B).T, WkinvAk0)
     return Wkc
 
 ###############################################################################
