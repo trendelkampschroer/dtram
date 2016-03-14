@@ -4,3 +4,5 @@
 *.log
 *.out
 dtram.egg-info
+build
+dtram/objective_sparse.c
