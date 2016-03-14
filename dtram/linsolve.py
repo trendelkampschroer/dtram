@@ -1,9 +1,34 @@
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
-from scipy.sparse import issparse, diags, csr_matrix
-from scipy.sparse.linalg import splu, SuperLU
+from scipy.sparse import issparse, diags, csr_matrix, csc_matrix, bmat
+from scipy.sparse.linalg import splu, SuperLU, gmres, minres
 # from scikits.umfpack import splu
 # from scikits.umfpack.interface import UmfpackLU as SuperLU
+
+
+def probe(S):
+    r"""Probe the Schur complement matrix to extract approximate diagonal
+    using only a few matrix vector products.
+    
+    """
+    N = S.shape[0]
+    w1 = np.zeros(N)
+    w2 = np.zeros(N)
+    w3 = np.zeros(N)
+    w1[0::3] = 1.0
+    w2[1::3] = 1.0
+    w3[2::3] = 1.0
+
+    y1 = S.dot(w1)
+    y2 = S.dot(w2)
+    y3 = S.dot(w3)
+
+    d0 = np.zeros(N)
+    d0[0::3] = y1[0::3]
+    d0[1::3] = y2[1::3]
+    d0[2::3] = y3[2::3]
+    
+    return d0
 
 def mydot(A, B):
     r"""Dot-product that can handle dense and sparse arrays
@@ -33,11 +58,37 @@ def myfactor(A):
     else:
         return lu_factor(A)
 
+def extract_cols(A):
+    A = A.tocsc()
+    indptr = A.indptr
+    """Indices of nonzero cols"""
+    cols = np.nonzero(indptr[1:] - indptr[0:-1])[0]
+    """Extract nonzero columns"""
+    Anz = A[:, cols]
+    return Anz.toarray(), cols
+
 def mysolve(LU, b):
-    if isinstance(LU, SuperLU):
-        return LU.solve(b)
+    if isinstance(LU, SuperLU):        
+        if b.ndim>1:
+            bnz, cols = extract_cols(b)
+            xnz = LU.solve(bnz)
+            # ind = np.any(b != 0.0, axis=0)
+            # xnz = LU.solve(b[:, ind])
+            x = np.zeros((xnz.shape[0], b.shape[1]))
+            x[:, cols] = xnz
+            return x        
+        else:
+            return LU.solve(b)
     else:
         return lu_solve(LU, b)
+
+# def mysolve(LU, b):
+#     if isinstance(LU, SuperLU):                
+#         return LU.solve(b)
+#     else:
+#         return lu_solve(LU, b)
+
+
 
 ###############################################################################
 # Utility functions for block-assembly
@@ -54,21 +105,16 @@ def assemble_aug(DFval, l, s, A, G):
     SIG = diags(l/s, 0)
 
     """Augmented system"""
-    W = np.zeros((n+n_E, n+n_E))
-
-    """Assemble system"""
-    # W[0:n, 0:n] = DFval + mydot(G.T, sig[:,np.newaxis]*G)
-    W[0:n, 0:n] = DFval + mydot(G.T, mydot(SIG, G))    
-    W[0:n, n:] = A.T
-    W[n:, 0:n] = A
+    H = DFval + (G.T.dot(SIG)).dot(G)    
+    W = bmat([[H, A.T], [A, None]], format='csr')        
     return W
 
 def schur_complement(LU_Wk, B):
     """Compute Wk^{-1} Ak0"""
-    WkinvAk0 = mysolve(LU_Wk, B)
+    WkinvAk0 = mysolve(LU_Wk, B)    
     """Compute Schur complement Ak0^T Wk^{-1} Ak0"""
-    Wkc = mydot(csr_matrix(B).T, WkinvAk0)
-    return Wkc
+    Wkc = mydot(B.T, WkinvAk0)
+    return Wkc 
 
 ###############################################################################
 # Factor and solve for DTRAM system
@@ -135,29 +181,27 @@ def factor(DFval, z, A0, Ak, Ak0, G):
     s = z[N+P+M:]
 
     """Set up extended block containing coupling to augmented system
-    at alpha=0"""
-    B = np.zeros((n+p_E, n+p_E0))
-    B[n:, 0:n] = Ak0
+
+    at alpha=0"""    
+    B = bmat([[None, csr_matrix((n, p_E0))], [Ak0, None]], format='csr')    
 
     """Assembel augmented system for alpha=0"""
     l0 = l[0:m]
     s0 = s[0:m]
-    DFval0 = DFval[0:n,:]    
+    DFval0 = DFval[0]
     S = assemble_aug(DFval0, l0, s0, A0, G) #S is the LHS for the condensed system
-
     """Compute LU-factors of augmented system for alpha>0 and update
     LHS of condensed system"""
     LU_W = []
     for k in range(1, K):
         lk = l[k*m:(k+1)*m]
         sk = s[k*m:(k+1)*m]
-        DFvalk = DFval[k*n:(k+1)*n, :]        
+        DFvalk = DFval[k]        
         """Assemble augmented system"""
         Wk = assemble_aug(DFvalk, lk, sk, Ak, G)
 
         """Factor"""
-        # LU_k = myfactor(Wk)
-        LU_k = myfactor(csr_matrix(Wk))
+        LU_k = myfactor(Wk)
         
         """Compute Schur complement"""
         SC_k = schur_complement(LU_k, B)
@@ -169,7 +213,8 @@ def factor(DFval, z, A0, Ak, Ak0, G):
         
     """Factor LHS of condensed system"""
     # LU_S = myfactor(S)
-    LU_S = myfactor(csr_matrix(S))    
+    LU_S = myfactor(csr_matrix(S))
+    # LU_S = S
     
     return (LU_S, LU_W)
 
@@ -216,9 +261,10 @@ def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
 
     """Set up extended block containing coupling to augmented system
     at alpha=0"""
-    B = np.zeros((n+p_E, n+p_E0))
-    B[n:, 0:n] = Ak0
-
+    # B = np.zeros((n+p_E, n+p_E0))
+    # B[n:, 0:n] = Ak0
+    B = bmat([[None, csr_matrix((n, p_E0))], [Ak0, None]], format='csr')
+    
     """Diagonal of Sigma matrix"""
     sig = l/s
 
@@ -259,19 +305,28 @@ def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
     dl = np.zeros(M)
     ds = np.zeros(M)
 
-    # """Solve system at condition alpha=0"""
-    # dy0 = mysolve(LU_S, -rhs0)
-    # dx[0:n] = dy0[0:n]
-    # dnu[0:p_E0] = dy0[n:]
-    # ds[0:m] = -rp2[0:m] - mydot(G, dx[0:n])
-    # dl[0:m] = -sig[0:m]*ds[0:m] - rc[0:m]/s[0:m]
+    # """Set up the symmetrization matrix"""
+    # T0 = diags(np.hstack((np.ones(n/2), -1.0*np.ones(n/2+p_E0))), 0)
+    # S = LU_S
+    # Ssym = T0.dot(csr_matrix(LU_S))
+    # rhs0sym = T0.dot(rhs0)
+
+    # """Set up Jacobi preconditioning for Ssym"""
+    # # dSsym = np.abs(Ssym.diagonal())
+    # dSsym = np.abs(probe(Ssym))
+    # dPc = np.ones(Ssym.shape[0])
+    # ind = (dSsym > 0.0)
+    # dPc[ind] = 1.0/dSsym[ind]
+    # Pc = diags(dPc, 0)    
+    # mycounter = MyCounter()
 
     """Compute increment subvectors and assign"""
     for k in range(K):
         if k==0:
             dy0 = mysolve(LU_S, -rhs0)
+            # dy0, info = minres(Ssym, -rhs0sym, tol=1e-10, M=Pc, callback=mycounter.count)
+            # print mycounter.N
             dy = dy0
-            # dx[0:n] = dy0[0:n]
             dnu[0:p_E0] = dy0[n:]
         else:
             dy = -Winvb[k-1] - mysolve(LU_W[k-1], mydot(B, dy0))
@@ -281,3 +336,12 @@ def solve_factorized(KKTval, z, LU, A0, Ak, Ak0, G):
         dl[k*m:(k+1)*m] = -sig[k*m:(k+1)*m]*ds[k*m:(k+1)*m] - rc[k*m:(k+1)*m]/s[k*m:(k+1)*m]
 
     return np.hstack((dx, dnu, dl, ds))
+
+class MyCounter(object):
+
+    def __init__(self):
+        self.N = 0
+
+    def count(self, xk):
+        self.N += 1
+

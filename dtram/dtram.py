@@ -1,8 +1,8 @@
 import numpy as np
 import scipy.sparse
 
-from objective import F_dtram, DF_dtram, convert_solution
-from linsolve_new import factor, solve_factorized, mydot
+from objective_sparse import F_dtram, DF_dtram, convert_solution
+from linsolve import factor, solve_factorized, mydot
 
 __all__=['solve_dtram',]
 
@@ -318,6 +318,16 @@ def solve_dtram(C, u, tol=1e-10, maxiter=100, show_progress=True):
     K = C.shape[0] # Number of thermodynamic states
     M = C.shape[1] # Number of discrete states
 
+    """Set up parameter"""
+    c = []
+    Cs = []
+    for i in range(K):
+        Ci = C[i,:, :]
+        ci = Ci.sum(axis=0)
+        Csi = scipy.sparse.csr_matrix(Ci+Ci.T)
+        c.append(ci)
+        Cs.append(Csi)    
+
     """Inequality constraints"""
     # Gk = np.zeros((M, 2*M))
     # Gk[:,0:M] = -1.0 * np.eye(M)
@@ -329,13 +339,19 @@ def solve_dtram(C, u, tol=1e-10, maxiter=100, show_progress=True):
     A0[0, M] = 1.0
     b0 = np.array([0.0])
 
+    A0 = scipy.sparse.csr_matrix(A0)
+
     """Equality constraints at alpha>0"""
     Ak = np.zeros((M, 2*M))
     Ak[:, M:] = np.eye(M)
 
+    Ak = scipy.sparse.csr_matrix(Ak)
+
     """Coupling constraints"""
     Ak0 = np.zeros((M, 2*M))
     Ak0[:,M:] = -1.0*np.eye(M)
+
+    Ak0 = scipy.sparse.csr_matrix(Ak0)
 
     """RHS for equality constraints, alpha>0"""
     bk = np.zeros((K-1)*M)
@@ -350,17 +366,20 @@ def solve_dtram(C, u, tol=1e-10, maxiter=100, show_progress=True):
     xstart = np.tile(xstarti, K)
 
     x = primal_dual_solve(F_dtram, xstart, DF_dtram, A0, b0,
-                          Ak, bk, Ak0, Gk, hk, args=(C,), tol=tol,
+                          Ak, bk, Ak0, Gk, hk, args=(Cs, c), tol=tol,
                           maxiter=maxiter, show_progress=show_progress)
 
     """Extract optimal point at alpha=0"""
     x0 = x[0:2*M]
 
-    """Count matrix at alpha=0"""
-    C0 = C[0, :, :]
+    # """Count matrix at alpha=0"""
+    # C0 = C[0, :, :]
+    """Parameters at alpha=0"""
+    Cs0 = Cs[0]
+    c0 = c[0]
 
     """Compute pi0 and P0"""
-    pi0, P0 = convert_solution(x0, C0)
+    pi0, P0 = convert_solution(x0, Cs0)
 
     return pi0, P0
 
