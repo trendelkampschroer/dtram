@@ -2,7 +2,7 @@ import numpy as np
 import scipy.sparse
 
 from objective import F_dtram, DF_dtram, convert_solution
-from linsolve import factor, solve_factorized, mydot
+from linsolve_new import factor, solve_factorized, mydot
 
 __all__=['solve_dtram',]
 
